@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <link rel="stylesheet" href="./css/animation.css">
+    <style>
+         html, body {
+            padding: 0;
+            margin: 0 auto;
+            box-sizing: border-box;
+            width: 100%;
+            height: 100%;
+        }
+        body::-webkit-scrollbar {
+            width: 0 !important
+        }
+        ol, ul {
+            list-style: none;
+        }
+        .container {
+            width: 800px;
+            height: 100%;
+            margin: 0 auto;
+            overflow: hidden;
+        }
+        .container>.origin-photo {
+            position: absolute;
+            top: 20px;
+            display: block;
+            margin: 0 auto;
+        }
+        .container>.origin-photo>.origin {
+            display: block;
+            width: 425px;
+            height: 300px;
+            background-image: url('./origin2.png');
+            background-size: 100% 100%;
+        }
+        .container>.origin-photo>.img-wrap {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-direction: row;
+        }
+        .container>.origin-photo>.img-wrap>.img {
+            display: block;
+            width: 300px;
+            margin-bottom: 1px;
+            background-image: url('./origin2.png');
+            background-repeat: no-repeat;
+        }
+        .container>.origin-photo>.img-wrap>.img:not(:last-child) {
+            margin-right: 1px;
+        }
+        .container>.origin-photo>.img1 {
+            display: block;
+            width: 300px;
+            background-image: url('./origin2.png');
+            background-repeat: no-repeat;
+        }
+        .container>.origin-photo>.img1:not(:last-child) {
+            margin-bottom: 1px;
+        }
+        .container>#svg-content {
+            height: 698px;
+            width: 800px;
+            display: block;
+            margin: 0 auto;
+            overflow-x: hidden;
+            overflow-y: auto;
+        }
+        .container>#svg-content::-webkit-scrollbar {
+            display: none;
+        }
+        .container>#svg-content>#chart {
+            height: 698px;
+            position: absolute;
+            width: 800px;
+            opacity: 1;
+        }
+
+        .node rect {
+            cursor: move;
+        }
+        .node text {
+            pointer-events: none;
+            text-shadow: 0 1px 0 #fff
+        }
+        .link {
+            stroke: rgb(230, 228, 228);
+            stroke-opacity: .3;
+        }
+        .link:hover {
+            stroke-opacity: .7;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="origin-photo">
+            <div class="origin"></div>
+        </div>
+        <div id="svg-content" style="opacity:1;">
+            <div id="chart"></div>
+        </div>
+    </div>
+    <div class="container-1">
+            <div id="svg-content-1" style="opacity:1;">
+                <div id="chart-1"></div>
+            </div>
+        </div>
+</body>
+<script type="text/javascript" src="./js/underscore.js"></script>
+<script type="text/javascript" src="./js/jquery.min.js"></script>
+<script src="js/d3.v3.min.js"></script>
+<script src="js/sankey.js"></script>
+<script src="js/graphComponent.js"></script>
+<script type="text/template" id="origin-tpl">
+    <div class="origin"></div>
+</script>
+<!-- 横竖切模板 -->
+<script type="text/template" id="origin-photos-tpl">
+    <% _.each(k_list, function (item) { %>
+        <div class="img-wrap">
+            <% _.each(k_list, function (item) { %>
+                <div class="img"></div>
+            <% }); %>
+        </div>
+    <% }); %>
+</script>
+<!-- 横切模板 -->
+<script type="text/template" id="origin-photos-tpl2">
+    <% _.each(list, function (item) { %>
+        <div class="img1"></div>
+    <% }); %>
+</script>
+
+<script>
+    var naturalWidth = 892;
+    var naturalHeight = 1263;
+    var originWidth = 350;
+    var originHeight = naturalHeight / naturalWidth > 425 / 300 ? 425 : 350 / (naturalWidth / naturalHeight);
+    // 切图函数
+    function cutFhotos(data) {
+        data.flag = true;
+        data.nodes.map((item) => {
+            item.flag = true;
+            return item;
+        });
+        data.links.map((item) => {
+            item.flag = true;
+            return item;
+        });
+
+
+        $('#chart').find('svg').remove();
+        $('#chart').removeClass("animated bounceInUp");
+        let template = $('#origin-tpl').html();
+        $('.origin-photo').html(template);
+        $('.origin-photo').find('.origin').css({
+            width: originWidth,
+            height: originHeight
+        });
+        let fragments = data.nodes.filter((item) => item.layer !== 2);
+        let k = Math.sqrt(fragments.length);
+        let leftPadding = 5;
+        // 如果节点数量可以开放，那么横竖一起切 
+        if (k % 1 === 0) {
+            let timer1 = setTimeout(function() {
+                let k_list = (new Array(k)).fill(0);
+                let template1 = _.template($('#origin-photos-tpl').html())({k_list});
+                $('.origin-photo').html(template1);
+                for (let i = 0, len = $('.img').length; i < len; i += 1) {
+                    $('.img').eq(i).css({
+                        "width": (originWidth / k) + "px",
+                        "height": (originHeight / k) + "px",
+                        "background-position": function() {
+                            let x = 0;
+                            let y = 0;
+                            for (let j = 0; j < k; j += 1) {
+                                if (Math.ceil((i + 1) / k) === j + 1) {
+                                    // 计算每个切分图片的x值和y值的相对值
+                                    y = -j * (originHeight / k);
+                                    x = (i + 1) % k === 0 ? -(k - 1) / k * originWidth : -(((i + 1) % k - 1) * (originWidth / k));
+                                    // 最后一排设置样式
+                                    if (j == k - 1) {
+                                        $('.img').eq(i).css({
+                                            "margin-bottom": 0
+                                        });
+                                    }
+                                    return x + "px " + y + "px";
+                                }
+                            }
+                        },
+                        "background-size": originWidth + "px " + originHeight + "px",
+                    });
+                }
+                clearTimeout(timer1);
+                let timer2 = setTimeout(function() {
+                    $('.img').css({
+                        transition: "transform 1.5s linear"
+                    });
+                    for(let i = 0; i < $('.img').length; i += 1) {
+                        $('.img').eq(i).css({
+                            transform: function() {
+                                // 计算偏移量
+                                let x = 0;
+                                let y = 0;
+                                for (let j = 0; j < k; j += 1) {
+                                    if (Math.ceil((i + 1) / k) === j + 1) {
+                                        y = 85 * (i - j) - (originHeight / k - 85) / 2 * (2 * j + 1) + leftPadding * i;
+                                    }
+                                }
+                                if (i % k === 0) {
+                                    x = -(originWidth / k - 60) / 2 + 20;
+                                } else {
+                                    x = -(originWidth / k + 1) * (i % k) - (originWidth / k - 60) / 2 + 20;
+                                }
+                                return "translate(" + x + "px, " + y + "px) scale(" + (60/originWidth*k) + ", " + (60/originWidth*k) + ")";
+                            }
+                        });
+                    }
+                    let time3 = setTimeout(function() {
+                        $('#chart').css({
+                            height: 85 * k * k + (k * k - 1) * leftPadding + "px"
+                        });
+                        $('#svg-content').css({
+                            height: 85 * k * k + (k * k - 1) * leftPadding + "px"
+                        });
+                        $('#chart').addClass("animated bounceInUp");
+                        draw(data);
+                        clearTimeout(time3);
+                    }, 1100);
+                },800);
+            }, 1000);
+        }
+        // 如果节点数目不可以开放，那么只横着切
+        else if (k % 1 !== 0) {
+            let timer1 = setTimeout(function() {
+                let list = fragments;
+                let template2 = _.template($('#origin-photos-tpl2').html())({list});
+                $('.origin-photo').html(template2);
+                for (let i = 0, len = $('.img1').length; i < len; i += 1) {
+                    $('.img1').eq(i).css({
+                        "height": (originHeight / list.length) + "px",
+                        "background-position": function() {
+                            return 0 + "px " + (-originHeight / list.length * i) + "px";
+                        },
+                        "background-size": originWidth + "px " + originHeight + "px",
+                    });
+                }
+                clearTimeout(timer1);
+                let timer2 = setTimeout(function() {
+                    // 如果图片高度小于85
+                    if (list.length <= 3) {
+                        $('.img1').css({
+                            transition: "transform 1.5s linear"
+                        });
+                        for(let i = 0; i < $('.img1').length; i += 1) {
+                            $('.img1').eq(i).css({
+                                transform: function() {
+                                    // 计算偏移量
+                                    let y = -(originHeight / list.length - 85) / 2 * (2 * i + 1) - i + leftPadding * i;
+                                    let x = -originWidth/2 * (1 - 85 / originHeight * list.length) + 20;
+                                    return "translate(" + x + "px, " + y + "px) scale(" + (85/originHeight*list.length) + ", " + (85/originHeight*list.length) + ")";
+                                }
+                            });
+                        }
+                        let time3 = setTimeout(function() {
+                            $('#chart').css({
+                                height: 85 * list.length + (list.length - 1) * leftPadding + "px",
+                            });
+                            $('#svg-content').css({
+                                height: 85 * list.length + (list.length - 1) * leftPadding + "px",
+                            });
+                            $('#chart').addClass("animated bounceInUp");
+                            draw(data);
+                            clearTimeout(time3);
+                        }, 1100);
+                    } else {
+                        $('.img1').css({
+                            transition: "transform 1.5s linear",
+                        });
+                        for(let i = 0; i < $('.img1').length; i += 1) {
+                            $('.img1').eq(i).css({
+                                transform: function() {
+                                    // 计算偏移量
+                                    let y = (85 - originHeight / list.length) / 2 * (2 * i + 1) - i + leftPadding * i;
+                                    let x = 20;
+                                    return "translate(" + x + "px, " + y + "px)";
+                                }
+                            });
+                        }
+                        let time3 = setTimeout(function() {
+                            $('#chart').css({
+                                height: 85 * list.length + (list.length - 1) * leftPadding + "px",
+                            });
+                            $('#svg-content').css({
+                                height: 85 * list.length + (list.length - 1) * leftPadding + "px",
+                            });
+                            $('#chart').addClass("animated bounceInUp");
+                            draw(data);
+                            clearTimeout(time3);
+                        }, 1100);
+                    }
+                    
+                },800);
+            }, 1000);
+        }
+    }
+    // 画出links函数
+    function draw(data) {
+        change(data);
+    }
+    $(function() {
+        $('.origin-photo').find('.origin').css({
+            width: '1000px',
+            height: '1000px'
+        });
+        // canvas转image
+        // let myCanvas = document.getElementById('canvas');
+        // let image = new Image(300, 425);
+        // image.src = myCanvas.toDataURL("image/png");
+        // console.log(myCanvas.toDataURL("image/png"));
+        // $('origin').css({
+        //     "background-image": "url(" + image.src + ")"
+        // });
+
+        var hostname = window.location.hostname.toString();
+        var peersData = {};
+        var subFilesData = {};
+        var relationMapData = [];
+        var relationData = {};
+        $.ajax({
+            type: "POST",
+            async: false,
+            url: 'http://' + hostname + ':8650' + '/trustee/getIPFSClusterPeersInfo',
+            timeout: 50000,
+            crossDomain: true,
+            xhrFields: {
+                withCredentials: true,
+            },
+            success: function(res) {
+                if (res.data.code === 2000) {
+                    peersData = res.data.data;
+                } else {
+                    alert(res.data.message);
+                }
+            },
+            error: function(err) {
+                console.log(err);
+            }
+        });
+        $.ajax({
+            type: "POST",
+            async: false,
+            url: 'http://' + hostname + ':8650' + '/trustee/getTrusteeSubFilesInfo',
+            timeout: 50000,
+            crossDomain: true,
+            xhrFields: {
+                withCredentials: true,
+            },
+            success: function(res) {
+                if (res.data.code === 2000) {
+                    subFilesData = res.data.data;
+                } else {
+                    alert(res.data.message);
+                }
+            },
+            error: function(err) {
+                console.log(err);
+            }
+        });
+        $.ajax({
+            type: "POST",
+            async: false,
+            url: 'http://' + hostname + ':8650' + '/trustee/getFileStorageRelations',
+            timeout: 50000,
+            crossDomain: true,
+            xhrFields: {
+                withCredentials: true,
+            },
+            success: function(res) {
+                if (res.data.code === 2000) {
+                    relationData = res.data.data;
+                } else {
+                    alert(res.data.message);
+                }
+            },
+            error: function(err) {
+                console.log(err);
+            }
+        });
+        let graphData = {
+            nodes: [],
+            links: []
+        };
+        subFilesData.subfileNum > 0 && subFilesData.subFiles.forEach((item) => {
+            graphData.nodes.push(item);
+            relationMapData.push(item.name);
+        });
+        peersData.peerNum > 0 && peersData.peers.forEach((item) => {
+            let peer = {
+                name: item.peername,
+                layer: 2,
+                address: item.address
+            };
+            graphData.nodes.push(peer);
+            relationMapData.push(item.name);
+        });
+        relationData.fileNum > 0 && relationData.relations.forEach((item) => {
+            item.peers.forEach((relatedPeer) => {
+                let childRelation = {
+                    source: relationMapData.indexOf(item.filename),
+                    target: relationMapData.indexOf(relatedPeer),
+                    value: 1
+                };
+                graphData.links.push(childRelation);
+            });
+        });
+
+        // 16个碎片
+        var mock_data={
+            "nodes": [
+                {"name":"碎片1"},
+                {"name":"碎片2"},
+                {"name":"碎片3"},
+                {"name":"碎片4"},
+                {"name":"碎片5"},
+                {"name":"碎片6"},
+                {"name":"碎片7"},
+                {"name":"碎片8"},
+                {"name":"碎片9"},
+                {"name":"碎片10"},
+                {"name":"碎片11"},
+                {"name":"碎片12"},
+                {"name":"碎片13"},
+                {"name":"碎片14"},
+                {"name":"碎片15"},
+                {"name":"碎片16"},
+                {"name":"节点1", "layer":2},
+                {"name":"节点2", "layer":2},
+                {"name":"节点3", "layer":2},
+                {"name":"节点4", "layer":2},
+                {"name":"节点5", "layer":2},
+                {"name":"节点6", "layer":2},
+                {"name":"节点7", "layer":2},
+                {"name":"节点8", "layer":2},
+                {"name":"节点9", "layer":2},
+            ],
+            "links": [
+                {"source":0,"target":16,"value":1},
+                {"source":0,"target":17,"value":1},
+                {"source":0,"target":18,"value":1},
+                {"source":1,"target":16,"value":1},
+                {"source":2,"target":17,"value":1},
+                {"source":3,"target":17,"value":1},
+                {"source":1,"target":17,"value":1},
+                {"source":3,"target":18,"value":1},
+                {"source":4,"target":19,"value":1},
+                {"source":5,"target":20,"value":1},
+                {"source":5,"target":19,"value":1},
+                {"source":5,"target":22,"value":1},
+                {"source":6,"target":21,"value":1},
+                {"source":7,"target":22,"value":1},
+                {"source":8,"target":23,"value":1},
+                {"source":9,"target":24,"value":1},
+                {"source":10,"target":20,"value":1},
+                {"source":11,"target":21,"value":1},
+                {"source":12,"target":22,"value":1},
+                {"source":13,"target":23,"value":1},
+                {"source":14,"target":22,"value":1},
+                {"source":15,"target":24,"value":1},
+            ],
+        };
+        var mock_data1={
+            "nodes": [
+                {"name":"碎片1"},
+                {"name":"碎片2"},
+                {"name":"碎片3"},
+                {"name":"碎片4"},
+                {"name":"碎片5"},
+                {"name":"碎片6"},
+                {"name":"碎片7"},
+                {"name":"碎片8"},
+                {"name":"碎片9"},
+                {"name":"节点1", "layer":2},
+                {"name":"节点2", "layer":2},
+                {"name":"节点3", "layer":2},
+                {"name":"节点4", "layer":2},
+                {"name":"节点5", "layer":2},
+                {"name":"节点6", "layer":2},
+                {"name":"节点7", "layer":2},
+            ],
+            "links": [
+                {"source":0,"target":9,"value":1},
+                {"source":0,"target":10,"value":1},
+                {"source":0,"target":11,"value":1},
+                {"source":1,"target":9,"value":1},
+                {"source":2,"target":10,"value":1},
+                {"source":3,"target":10,"value":1},
+                {"source":1,"target":10,"value":1},
+                {"source":3,"target":11,"value":1},
+                {"source":4,"target":12,"value":1},
+                {"source":5,"target":13,"value":1},
+                {"source":5,"target":12,"value":1},
+                {"source":5,"target":15,"value":1},
+                {"source":6,"target":14,"value":1},
+                {"source":7,"target":14,"value":1},
+                {"source":8,"target":15,"value":1},
+            ],
+        };
+        var mock_data2={
+            "nodes": [
+                {"name":"碎片1"},
+                {"name":"碎片2"},
+                {"name":"碎片3"},
+                {"name":"碎片4"},
+                {"name":"节点1", "layer":2},
+                {"name":"节点2", "layer":2},
+                {"name":"节点3", "layer":2},
+                {"name":"节点4", "layer":2},
+            ],
+            "links": [
+                {"source":0,"target":4,"value":1},
+                {"source":0,"target":5,"value":1},
+                {"source":0,"target":7,"value":1},
+                {"source":1,"target":6,"value":1},
+                {"source":2,"target":7,"value":1},
+                {"source":3,"target":7,"value":1},
+                {"source":1,"target":7,"value":1},
+                {"source":3,"target":6,"value":1},
+            ],
+        };
+        
+        // 开始裁剪图片
+        cutFhotos(mock_data1);
+        // draw(mock_data2);
+    });
+</script>
+</html>
