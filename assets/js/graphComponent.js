@@ -93,9 +93,9 @@ var format2Number = d3.format(",.2f"),
         c.append("image")
             .attr("xlink:href", function(i) {
                 if (i.layer === 2) {
-                    return "./server.png";
+                    return "./assets/img/server.png";
                 } else if (!d.flag) {
-                    return "./lock.png"
+                    return "./assets/img/lock.png"
                 }
             })
             .style("outline", function(i) {
